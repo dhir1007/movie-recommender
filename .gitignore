@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Models & data (large files)
+models/*.joblib
+models/*.pkl
+models/*.index
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep          # optional: keep empty folders in git
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Misc
+.DS_Store
+Thumbs.db
