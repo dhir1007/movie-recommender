@@ -12,7 +12,7 @@ dependencies = [
     "fastapi (>=0.129.0,<0.130.0)",
     "uvicorn[standard] (>=0.41.0,<0.42.0)",
     "pydantic (>=2.12.5,<3.0.0)",
-    "pandas (>=3.0.1,<4.0.0)",
+    "pandas (>=2.2.0,<3.0.0)",   # or ">=2.2,<3.0" – 2.2 series works with NumPy 1.26 and 2.0,
     "matplotlib (>=3.10.8,<4.0.0)",
     "seaborn (>=0.13.2,<0.14.0)",
     "jupyter (>=1.1.1,<2.0.0)",
@@ -24,7 +24,8 @@ dependencies = [
     "sentence-transformers (>=5.2.3,<6.0.0)",
     "faiss-cpu (>=1.13.2,<2.0.0)",
     "torch (>=2.10.0,<3.0.0)",
-    "numpy (>=2.4.2,<3.0.0)"
+    "numpy (>=2.4.2,<3.0.0)",
+    "implicit (>=0.7.2,<0.8.0)"
 ]
 
 
