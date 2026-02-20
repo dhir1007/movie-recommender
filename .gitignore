@@ -19,6 +19,12 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep          # optional: keep empty folders in git
 
+.venv/
+__pycache__/
+*.pyc
+models/*.npy
+models/*.index
+
 # IDE
 .idea/
 .vscode/
