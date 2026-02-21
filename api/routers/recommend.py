@@ -118,3 +118,44 @@ async def health(models: dict = Depends(load_all_models)):
         }
     }
     return status
+
+# ... existing imports at top ...
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from src.db import get_db, Rating
+from pydantic import BaseModel
+
+class RatingCreate(BaseModel):
+    user_id: int
+    movie_id: int
+    rating: float
+
+@router.post("/rate")
+@limiter.limit("10/minute")
+async def rate_movie(
+    rating: RatingCreate,
+    db: Session = Depends(get_db),
+    request: Request = None  # for limiter
+):
+    """
+    Submit a new rating (saved to SQLite DB).
+    """
+    if not 0.5 <= rating.rating <= 5.0:
+        raise HTTPException(status_code=400, detail="Rating must be between 0.5 and 5.0")
+
+    db_rating = Rating(
+        user_id=rating.user_id,
+        movie_id=rating.movie_id,
+        rating=rating.rating
+    )
+    db.add(db_rating)
+    db.commit()
+    db.refresh(db_rating)
+
+    return {
+        "message": "Rating saved successfully",
+        "rating_id": db_rating.id,
+        "user_id": db_rating.user_id,
+        "movie_id": db_rating.movie_id,
+        "rating": db_rating.rating
+    }
