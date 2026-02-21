@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Request, Depends
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import List, Dict
-import numpy as np
 
-from api.main import collab_model, content_embeddings, faiss_index, movie_df, item_codes_map
+from api.models_loader import load_all_models
+
 from src.models.hybrid import get_hybrid_recommendations
 
 router = APIRouter(prefix="/api", tags=["recommendations"])
@@ -14,42 +14,58 @@ limiter = Limiter(key_func=get_remote_address)
 @router.get("/recommend")
 @limiter.limit("30/minute")
 async def recommend(
-    user_id: int = Query(..., ge=1, description="User ID from MovieLens"),
-    n: int = Query(10, ge=1, le=50, description="Number of recommendations")
+    request: Request,
+    user_id: int = Query(..., ge=1, description="MovieLens user ID"),
+    n: int = Query(10, ge=1, le=50, description="Number of recommendations"),
+    models: dict = Depends(load_all_models)
 ):
-    """
-    Get hybrid personalized recommendations for a user.
-    Combines implicit ALS collaborative scores + content-based embeddings.
-    """
+    collab_model = models['collab_model']
+    content_embeddings = models['content_embeddings']
+    faiss_index = models['faiss_index']
+    movie_df = models['movie_df']
+    item_codes_map = models['item_codes_map']
+    if collab_model is None or content_embeddings is None or faiss_index is None or movie_df is None or item_codes_map is None:
+        raise HTTPException(status_code=500, detail="Models not loaded")
+    print(f"Request received for user {user_id} with {n} recommendations")
     try:
-        recs = get_hybrid_recommendations(user_id, n=n)
+        recs = get_hybrid_recommendations(user_id=user_id, n=n, collab_model=collab_model, content_embeddings=content_embeddings, faiss_index=faiss_index, movie_df=movie_df, item_codes_map=item_codes_map)
+        print(f"Hybrid recommendations generated: ", len(recs))
         
         result = []
         for movie_id, hybrid_score in recs:
+            print(f"Movie ID: {movie_id}, Hybrid score: {hybrid_score}")
             movie = movie_df[movie_df['movieId'] == movie_id]
             if movie.empty:
+                print(f"Movie ID {movie_id} not found")
                 continue
             movie = movie.iloc[0]
             result.append({
                 "movieId": int(movie_id),
                 "title": movie['title'],
                 "genres": movie['genres'],
-                "hybrid_score": round(hybrid_score, 4)
+                "hybrid_score": float(round(hybrid_score, 4))
             })
         
-        return {"user_id": user_id, "recommendations": result}
+        return {
+            "user_id": user_id,
+            "n_requested": n,
+            "recommendations": result
+        }
     
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        print(f"Error generating recommendations in /recommend: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/similar")
 @limiter.limit("30/minute")
 async def similar(
-    movie_id: int = Query(..., description="Movie ID to find similar movies for"),
-    n: int = Query(10, ge=1, le=50, description="Number of similar movies")
+    request: Request,
+    movie_id: int = Query(..., description="MovieLens movie ID"),
+    n: int = Query(10, ge=1, le=50, description="Number of similar movies"),
+    models: dict = Depends(load_all_models)
 ):
     """
     Get content-based similar movies using embeddings + FAISS.
@@ -63,7 +79,7 @@ async def similar(
         query_vec = content_embeddings[idx].reshape(1, -1).astype('float32')
         distances, indices = faiss_index.search(query_vec, n + 1)
         
-        # Skip self (first result)
+        # Skip self
         distances = distances[0][1:]
         indices = indices[0][1:]
         
@@ -74,25 +90,31 @@ async def similar(
                 "movieId": int(movie['movieId']),
                 "title": movie['title'],
                 "genres": movie['genres'],
-                "similarity_score": round(score, 4)
+                "similarity_score": float(round(score, 4))
             })
         
-        return {"movie_id": movie_id, "similar_movies": result}
+        return {
+            "movie_id": movie_id,
+            "similar_movies": result
+        }
     
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
 @router.get("/health")
-async def health():
-    """Check if API and models are loaded."""
-    loaded = {
-        "collab_model": collab_model is not None,
-        "content_embeddings": content_embeddings is not None,
-        "faiss_index": faiss_index is not None,
-        "movie_df": movie_df is not None
+async def health(models: dict = Depends(load_all_models)):
+    """Health check - confirms models are loaded."""
+    status = {
+        "status": "healthy",
+        "models_loaded": {
+            "collaborative": models['collab_model'] is not None,
+            "content_embeddings": models['content_embeddings'] is not None,
+            "faiss_index": models['faiss_index'] is not None,
+            "movie_df": models['movie_df'] is not None,
+            "item_codes_map": models['item_codes_map'] is not None
+        }
     }
-    status = all(loaded.values())
-    return {"status": "healthy" if status else "degraded", "models": loaded}
+    return status
