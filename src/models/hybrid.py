@@ -3,10 +3,19 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 from pathlib import Path
 
-from api.models_loader import collab_model, content_embeddings, faiss_index, movie_df, item_codes_map
+ratings_path = Path('data/raw/ratings.csv')
 
-PROJECT_ROOT = Path('/Users/dhirkatre/code/movie-recommender')  
-def get_hybrid_recommendations(user_id: int, n: int = 10, alpha: float = 0.6, collab_model=None, content_embeddings=None, faiss_index=None, movie_df=None, item_codes_map=None):
+  
+def get_hybrid_recommendations(
+    user_id: int, 
+    n: int = 10, 
+    alpha: float = 0.6, 
+    collab_model=None, 
+    content_embeddings=None, 
+    faiss_index=None, 
+    movie_df=None, 
+    item_codes_map=None,
+    ratings=None):
     """
     Hybrid score = alpha * collaborative (ALS) + (1-alpha) * content (embeddings)
     Returns list of (movie_id, hybrid_score) tuples, sorted descending.
@@ -14,7 +23,7 @@ def get_hybrid_recommendations(user_id: int, n: int = 10, alpha: float = 0.6, co
     if any(x is None for x in [collab_model, content_embeddings, faiss_index, movie_df, item_codes_map]):
         raise ValueError("Models not loaded")
     
-    ratings = pd.read_csv(PROJECT_ROOT / 'data/raw/ratings.csv')
+    ratings = pd.read_csv(ratings_path)
     user_rated = ratings[ratings['userId'] == user_id]
 
     # --- Collaborative scores (implicit ALS) ---

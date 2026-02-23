@@ -70,29 +70,38 @@ async def similar(
     """
     Get content-based similar movies using embeddings + FAISS.
     """
+    collab_model = models['collab_model']
+    content_embeddings = models['content_embeddings']
+    faiss_index = models['faiss_index']
+    movie_df = models['movie_df']
+    item_codes_map = models['item_codes_map']
+    if collab_model is None or content_embeddings is None or faiss_index is None or movie_df is None or item_codes_map is None:
+        raise HTTPException(status_code=500, detail="Models not loaded")
+    print(f"Request received for movie {movie_id} with {n} similar movies")
     try:
         idx = movie_df[movie_df['movieId'] == movie_id].index
         if idx.empty:
             raise ValueError(f"Movie ID {movie_id} not found")
         idx = idx[0]
-        
+        print(f"Movie ID {movie_id} found at index {idx}")
         query_vec = content_embeddings[idx].reshape(1, -1).astype('float32')
         distances, indices = faiss_index.search(query_vec, n + 1)
-        
+        print(f"FAISS search completed: distances: {distances}, indices: {indices}")
         # Skip self
         distances = distances[0][1:]
         indices = indices[0][1:]
-        
+        print(f"Skipping self: distances: {distances}, indices: {indices}")
         result = []
         for idx, score in zip(indices, distances):
             movie = movie_df.iloc[idx]
+            print(f"Movie ID: {movie['movieId']}, Title: {movie['title']}, Genres: {movie['genres']}, Similarity score: {score}")
             result.append({
                 "movieId": int(movie['movieId']),
                 "title": movie['title'],
                 "genres": movie['genres'],
                 "similarity_score": float(round(score, 4))
             })
-        
+        print(f"Similar movies: {result}")
         return {
             "movie_id": movie_id,
             "similar_movies": result
@@ -101,7 +110,8 @@ async def similar(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        print(f"Error generating similar movies in /similar: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/health")
